@@ -32,12 +32,31 @@ jobs:
         import pandas as pd
         from datetime import datetime
         
+        def calculate_strength(df):
+            # 计算强度指标
+            df['量比得分'] = df['量比'].clip(0, 5)
+            df['换手率得分'] = df['换手率'].clip(0, 15) / 5
+            df['涨跌得分'] = ((df['涨跌幅'] + 10) / 20 * 2).clip(0, 2)
+            return df
+            
         def run_screener():
             try:
+                print(f'开始运行时间: {datetime.now()}')
                 df = ak.stock_zh_a_spot_em()
+                
                 if df is not None:
-                    df.to_csv('stock_data.csv', index=False)
-                    print(f'数据获取成功: {len(df)} 条记录')
+                    # 数据处理
+                    df = calculate_strength(df)
+                    # 筛选条件
+                    mask = (
+                        (df['涨跌幅'] > 0) &
+                        (df['量比'] > 1.5) &
+                        (df['换手率'] > 3)
+                    )
+                    result = df[mask].sort_values('量比', ascending=False)
+                    # 保存结果
+                    result.to_csv('stock_data.csv', index=False)
+                    print(f'数据获取成功: {len(result)} 条记录')
                 else:
                     print('数据获取失败')
             except Exception as e:
