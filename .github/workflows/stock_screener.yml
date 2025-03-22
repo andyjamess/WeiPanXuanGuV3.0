@@ -20,18 +20,34 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install akshare
-        pip install pandas
-        pip install flask
-        pip install flask-cors
+        pip install akshare==1.11.11
+        pip install pandas==1.5.3
+        pip install flask==2.3.3
+        pip install flask-cors==4.0.0
         
     - name: Run stock screener
       run: |
-        mkdir -p logs
-        python src/main.py > logs/stock_screener.log 2>&1
+        python -c "
+        import akshare as ak
+        import pandas as pd
+        from datetime import datetime
         
-    - name: Upload logs
+        def run_screener():
+            try:
+                df = ak.stock_zh_a_spot_em()
+                if df is not None:
+                    df.to_csv('stock_data.csv', index=False)
+                    print(f'数据获取成功: {len(df)} 条记录')
+                else:
+                    print('数据获取失败')
+            except Exception as e:
+                print(f'运行错误: {str(e)}')
+        
+        run_screener()
+        "
+        
+    - name: Upload results
       uses: actions/upload-artifact@v2
       with:
-        name: stock-screener-logs
-        path: logs/stock_screener.log
+        name: stock-data
+        path: stock_data.csv
