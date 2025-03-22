@@ -30,55 +30,108 @@ jobs:
         python -c "
         import akshare as ak
         import pandas as pd
+        import numpy as np
         from datetime import datetime
         
+        def safe_calculate(func, x, default=0):
+            try:
+                return func(x)
+            except:
+                return default
+                
         def calculate_strength(df):
-            # 计算强度指标
-            df['量比得分'] = df['量比'].apply(lambda x: min(5, x * 0.8 + (x > 3) * 0.5))  # 量比突破加分
-            df['换手率得分'] = df['换手率'].apply(lambda x: min(3, x * 0.3 + (x > 6) * 0.5))  # 高换手加分
-            df['涨跌得分'] = df['涨跌幅'].apply(lambda x: min(2, max(0, x * 0.2 + (x > 5) * 0.3)))  # 强势上涨加分
-            
-            # 计算市场特征
-            df['市场表现'] = (
-                (df['最新价'] > df['今开']) * 0.5 +  # 收盘价高于开盘价
-                (df['最新价'] == df['最高']) * 0.5    # 收盘价等于最高价
-            )
-            
-            # 综合得分计算
-            df['强度得分'] = (
-                df['量比得分'] * 1.2 +
-                df['换手率得分'] * 1.1 +
-                df['涨跌得分'] +
-                df['市场表现']
-            ).round(2)
-            return df
+            try:
+                # 安全转换数据类型
+                numeric_cols = ['量比', '换手率', '涨跌幅', '最新价', '今开', '最高', '最低']
+                for col in numeric_cols:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+                
+                # 移除无效数据
+                df = df.dropna(subset=numeric_cols)
+                
+                # 安全计算得分
+                df['量比得分'] = df['量比'].apply(lambda x: safe_calculate(
+                    lambda v: min(5, v * 0.8 + (v > 3) * 0.5 + (v > 4) * 0.3), x))
+                    
+                df['换手率得分'] = df['换手率'].apply(lambda x: safe_calculate(
+                    lambda v: min(3, v * 0.3 + (v > 6) * 0.5 + (v > 8) * 0.3), x))
+                    
+                df['涨跌得分'] = df['涨跌幅'].apply(lambda x: safe_calculate(
+                    lambda v: min(2, max(0, v * 0.2 + (v > 5) * 0.3 + (v > 7) * 0.2)), x))
+                
+                # 安全计算振幅
+                df['振幅得分'] = df.apply(lambda row: safe_calculate(
+                    lambda r: min(1, ((r['最高'] - r['最低']) / r['最低'] * 100) * 0.1)
+                    if r['最低'] > 0 else 0, row), axis=1)
+                
+                # 安全计算市场表现
+                df['市场表现'] = df.apply(lambda row: safe_calculate(lambda r: (
+                    (r['最新价'] > r['今开']) * 0.5 +
+                    (r['最新价'] > r['最高'] * 0.995) * 0.5 +
+                    (r['最新价'] > r['最低'] * 1.03) * 0.3
+                ), row), axis=1)
+                
+                # 安全计算综合得分
+                df['强度得分'] = (
+                    df['量比得分'].fillna(0) * 1.2 +
+                    df['换手率得分'].fillna(0) * 1.1 +
+                    df['涨跌得分'].fillna(0) * 1.0 +
+                    df['振幅得分'].fillna(0) * 0.8 +
+                    df['市场表现'].fillna(0)
+                ).round(2)
+                
+                return df
+                
+            except Exception as e:
+                print(f'计算得分时出错: {str(e)}')
+                return None
             
         def run_screener():
             try:
-                print(f'开始运行时间: {datetime.now()}')
+                start_time = datetime.now()
+                print(f'开始运行时间: {start_time}')
+                
+                # 设置超时时间
                 df = ak.stock_zh_a_spot_em()
                 
-                if df is not None:
+                if df is not None and not df.empty:
                     df = calculate_strength(df)
-                    mask = (
-                        (df['涨跌幅'] > 3) &
-                        (df['量比'] > 2.5) &
-                        (df['换手率'] > 4) &
-                        (df['最新价'] > df['今开']) &
-                        (df['最新价'] > 5) &
-                        (df['市场表现'] > 0)  # 必须有市场表现加分
-                    )
-                    result = df[mask].sort_values('强度得分', ascending=False).head(15)
-                    result.to_csv('stock_data.csv', index=False)
-                    print(f'筛选结果: {len(result)} 只股票')
-                    print('\\n强势股排名:')
-                    display = result[['代码', '名称', '最新价', '涨跌幅', '量比', '换手率', '市场表现', '强度得分']].head()
-                    print(display.to_string())
+                    
+                    if df is not None:
+                        # 安全筛选
+                        try:
+                            mask = (
+                                (df['涨跌幅'] > 2) &
+                                (df['量比'] > 2.0) &
+                                (df['换手率'] > 3) &
+                                (df['最新价'] > df['今开']) &
+                                (df['最新价'] > 5) &
+                                (df['市场表现'] > 0.5)
+                            )
+                            result = df[mask].sort_values('强度得分', ascending=False).head(20)
+                            
+                            if not result.empty:
+                                result.to_csv('stock_data.csv', index=False)
+                                print(f'筛选结果: {len(result)} 只股票')
+                                print('\\n强势股排名:')
+                                display = result[['代码', '名称', '最新价', '涨跌幅', '量比', '换手率', '振幅得分', '市场表现', '强度得分']].head()
+                                print(display.to_string())
+                            else:
+                                print('没有符合条件的股票')
+                                
+                        except Exception as e:
+                            print(f'筛选过程出错: {str(e)}')
+                    else:
+                        print('数据处理失败')
                 else:
-                    print('数据获取失败')
+                    print('数据获取失败或数据为空')
+                    
+                end_time = datetime.now()
+                print(f'运行完成，耗时: {end_time - start_time}')
+                
             except Exception as e:
-                print(f'运行错误: {str(e)}')
-        
+                print(f'程序运行错误: {str(e)}')
+            
         run_screener()
         "
         
