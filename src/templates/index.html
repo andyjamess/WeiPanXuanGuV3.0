@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>尾盘选股系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .nav-gradient {
+            background: linear-gradient(90deg, #1e40af 0%, #3b82f6 100%);
+        }
+        
+        .card-gradient-blue {
+            background: linear-gradient(135deg, #e0f2fe 0%, #e0e7ff 100%);
+            transition: transform 0.2s ease-in-out;
+        }
+        
+        .card-gradient-blue:hover {
+            transform: translateY(-2px);
+        }
+        
+        .card-gradient-gray {
+            background: linear-gradient(135deg, #f8fafc 0%, #dbeafe 100%);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-gradient {
+            background: linear-gradient(90deg, #2563eb 0%, #4f46e5 100%);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn-gradient:hover {
+            background: linear-gradient(90deg, #1d4ed8 0%, #4338ca 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        
+        .btn-gradient:active {
+            transform: translateY(0);
+        }
+        
+        .table-row-even {
+            background-color: rgba(255, 255, 255, 0.7);
+            transition: all 0.2s ease;
+        }
+        
+        .table-row-odd {
+            background-color: rgba(219, 234, 254, 0.3);
+            transition: all 0.2s ease;
+        }
+        
+        .table-row-hover:hover {
+            background-color: rgba(191, 219, 254, 0.5);
+            transform: scale(1.01);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+        
+        .signal-badge {
+            transition: all 0.2s ease;
+        }
+        
+        .signal-badge:hover {
+            transform: scale(1.05);
+        }
+        
+        .update-time {
+            transition: opacity 0.3s ease;
+        }
+        
+        .update-time.fade {
+            opacity: 0.6;
+        }
+        
+        .detail-button {
+            transition: all 0.2s ease;
+        }
+        
+        .detail-button:hover {
+            transform: translateX(2px);
+        }
+        
+        .input-focus {
+            transition: all 0.2s ease;
+        }
+        
+        .input-focus:focus {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="min-h-screen">
+        <!-- 导航栏 -->
+        <nav class="nav-gradient shadow-lg">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16">
+                    <div class="flex items-center">
+                        <h1 class="text-xl font-bold text-white">尾盘速选模式</h1>
+                    </div>
+                    <div class="flex items-center">
+                        <span id="lastUpdateTime" class="text-sm text-blue-100 opacity-0 transition-opacity duration-300"></span>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+            <!-- 参数设置区 -->
+            <!-- 在参数设置区前添加策略说明卡片 -->
+            <div class="card-gradient-gray rounded-lg shadow-md mb-6">
+                <div class="p-6">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">筛选参数设置</h3>
+                    <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
+                        <!-- 价格区间设置 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 w-24">价格区间</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <div class="text-xs text-red-500 mb-1">最低价格</div>
+                                    <input type="number" id="minPrice" value="5" class="block w-full h-9 px-3 py-1.5 border border-gray-300 rounded-md">
+                                </div>
+                                <div>
+                                    <div class="text-xs text-red-500 mb-1">最高价格</div>
+                                    <input type="number" id="maxPrice" value="20" class="block w-full h-9 px-3 py-1.5 border border-gray-300 rounded-md">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 交易量设置 -->
+                        <div>
+                            <!-- 交易指标 -->
+                                <label class="block text-sm font-medium text-gray-700 w-24">交易指标</label>
+                                <div class="flex-1 flex items-center space-x-4">
+                                    <div class="flex-1">
+                                        <div class="text-xs text-red-500 mb-1">最小成交量(万手)</div>
+                                        <input type="number" id="minVolume" value="50" class="block w-full h-9 px-3 py-1.5 border border-gray-300 rounded-md">
+                                    </div>
+                                    <div class="flex-1">
+                                        <div class="text-xs text-red-500 mb-1">最大换手率(%)</div>
+                                        <input type="number" id="maxTurnover" value="15" class="block w-full h-9 px-3 py-1.5 border border-gray-300 rounded-md">
+                                    </div>
+                                </div>
+                        </div>
+                        
+                        <!-- 得分设置 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 w-24">尾盘得分</label>
+                            <div class="flex items-center">
+                                <div class="w-full">
+                                    <div class="text-xs text-red-500 mb-1">最小阈值(建议：牛市0.4，震荡市0.6，熊市0.8)</div>
+                                    <input type="number" id="minScore" value="0.4" class="block w-full h-9 px-3 py-1.5 border border-gray-300 rounded-md">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 操作按钮 -->
+                    <div class="mt-6">
+                        <!-- 按钮样式 -->
+                        <style>
+                        .btn-loading {
+                            position: relative;
+                            pointer-events: none;
+                        }
+                        
+                        .btn-loading span {
+                            opacity: 0;
+                        }
+                        
+                        .btn-loading::after {
+                            content: "";
+                            position: absolute;
+                            width: 20px;
+                            height: 20px;
+                            top: 50%;
+                            left: 50%;
+                            margin: -10px 0 0 -10px;
+                            border: 2px solid #ffffff;
+                            border-radius: 50%;
+                            border-right-color: transparent;
+                            animation: spin 0.8s linear infinite;
+                        }
+                        
+                        @keyframes spin {
+                            to { transform: rotate(360deg); }
+                        }
+                        </style>
+         
+                        <!-- 在操作按钮区域添加进度条 -->
+                        <div class="mt-6">
+                            <!-- 进度条容器 -->
+                            <div id="progressContainer" class="mb-4 hidden">
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-sm text-gray-600">数据刷新中</span>
+                                    <span id="countdownTimer" class="text-sm text-blue-600">60s</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                    <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-1000" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        
+                            <!-- 原有的按钮 -->
+                            <!-- 在 style 标签中添加新的样式 -->
+                            <style>
+                            /* ... 现有样式 ... */
+                            
+                            .loading-bar {
+                                width: 100%;
+                                height: 4px;
+                                background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 50%, #3b82f6 100%);
+                                background-size: 200% 100%;
+                                animation: loading 1.5s infinite;
+                                border-radius: 2px;
+                                margin-top: 8px;
+                                display: none;
+                            }
+                            
+                            @keyframes loading {
+                                0% { background-position: 200% 0; }
+                                100% { background-position: -200% 0; }
+                            }
+                            </style>
+                            
+                            <!-- 在按钮下方添加加载条 -->
+                            <div class="mt-6">
+                                <button onclick="refreshStocks()" id="refreshBtn" 
+                                    class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md">
+                                    <span>获取数据</span>
+                                </button>
+                                <div id="loadingBar" class="loading-bar"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- 添加进度条相关脚本 -->
+                        <script>
+                        let progressTimer;
+                        const REFRESH_INTERVAL = 60; // 刷新间隔，单位秒
+                        
+                        function updateProgress(remainingTime) {
+                            const progress = ((REFRESH_INTERVAL - remainingTime) / REFRESH_INTERVAL) * 100;
+                            const progressBar = document.getElementById('progressBar');
+                            const countdownTimer = document.getElementById('countdownTimer');
+                            
+                            progressBar.style.width = `${progress}%`;
+                            countdownTimer.textContent = `${remainingTime}s`;
+                        }
+                        
+                        function startProgress() {
+                            const progressContainer = document.getElementById('progressContainer');
+                            progressContainer.classList.remove('hidden');
+                            
+                            let remainingTime = REFRESH_INTERVAL;
+                            updateProgress(remainingTime);
+                            
+                            progressTimer = setInterval(() => {
+                                remainingTime--;
+                                updateProgress(remainingTime);
+                                
+                                if (remainingTime <= 0) {
+                                    clearInterval(progressTimer);
+                                    progressContainer.classList.add('hidden');
+                                }
+                            }, 1000);
+                        }
+                        
+                        // 修改 refreshStocks 函数
+                        function refreshStocks() {
+                            const btn = document.getElementById('refreshBtn');
+                            const loadingBar = document.getElementById('loadingBar');
+                            const progressContainer = document.getElementById('progressContainer');
+                            
+                            // 禁用按钮并显示加载效果
+                            btn.disabled = true;
+                            btn.classList.add('opacity-75');
+                            progressContainer.classList.remove('hidden');
+                            
+                            // 获取参数
+                            const params = {
+                                min_score: document.getElementById('minScore').value,
+                                min_price: document.getElementById('minPrice').value,
+                                max_price: document.getElementById('maxPrice').value,
+                                min_volume: document.getElementById('minVolume').value,
+                                max_turnover: document.getElementById('maxTurnover').value
+                            };
+                            
+                            // 开始进度条动画
+                            let progress = 0;
+                            const progressBar = document.getElementById('progressBar');
+                            const progressInterval = setInterval(() => {
+                                if (progress < 90) {  // 最多到90%，留10%给实际数据加载
+                                    progress += 1;
+                                    progressBar.style.width = `${progress}%`;
+                                }
+                            }, 100);
+                        
+                            fetch(`/api/stocks?${new URLSearchParams(params)}`)
+                                .then(response => response.json())
+                                .then(data => {
+                                    if (data.status === 'success') {
+                                        // 更新表格数据
+                                        updateStockTable(data.data);
+                                        // 显示更新时间
+                                        showLastUpdateTime();
+                                    } else {
+                                        alert(data.message || '获取数据失败');
+                                    }
+                                })
+                                .catch(error => {
+                                    console.error('Error:', error);
+                                    alert('获取数据失败，请稍后重试');
+                                })
+                                .finally(() => {
+                                    // 清理进度条动画
+                                    clearInterval(progressInterval);
+                                    progressBar.style.width = '100%';
+                                    
+                                    // 延迟后隐藏加载效果
+                                    setTimeout(() => {
+                                        btn.disabled = false;
+                                        btn.classList.remove('opacity-75');
+                                        progressContainer.classList.add('hidden');
+                                        progressBar.style.width = '0%';
+                                    }, 500);
+                                });
+                        }
+                        </script>
+                        </script>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 股票列表 -->
+            <div class="card-gradient-gray rounded-lg shadow-md">
+                <div class="p-6">
+                    <!-- 在股票列表标题部分添加统计信息 -->
+                    <div class="sm:flex sm:items-center sm:justify-between mb-6">
+                        <h2 class="text-lg font-medium text-gray-900">
+                            选股结果
+                            <span id="stockCount" class="text-sm text-blue-600 ml-2">(共找到 0 只股票)</span>
+                            <span class="text-sm text-gray-500 ml-2">(按照得分由强到弱排序)</span>
+                        </h2>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead>
+                                <tr class="bg-blue-50">
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">股票</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">尾盘得分</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">信号强度</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">价格</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">涨跌幅</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">成交量(万手)</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">换手率(%)</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">量比</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">振幅(%)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stockList" class="divide-y divide-gray-200">
+                                <!-- 数据将通过 JavaScript 动态插入 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function refreshStocks() {
+            const tbody = document.querySelector('tbody');
+            const lastUpdateTime = document.getElementById('lastUpdateTime');
+            
+            // 获取筛选参数
+            const params = {
+                min_score: document.getElementById('minScore').value,
+                min_price: document.getElementById('minPrice').value,
+                max_price: document.getElementById('maxPrice').value,
+                min_volume: document.getElementById('minVolume').value,
+                max_turnover: document.getElementById('maxTurnover').value  // 修改这里
+            };
+            
+            // 构建查询字符串
+            const queryString = Object.keys(params)
+                .map(key => `${key}=${encodeURIComponent(params[key])}`)
+                .join('&');
+            
+            // 发起请求
+            fetch(`/api/stocks?${queryString}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    tbody.innerHTML = '';
+                    const stockCount = document.getElementById('stockCount');
+                    stockCount.textContent = `(共找到 ${data.length} 只股票)`;
+                    
+                    if (data.length === 0) {
+                        tbody.innerHTML = `
+                            <tr>
+                                <td colspan="10" class="px-6 py-4 text-center text-gray-500">暂无符合条件的股票</td>
+                            </tr>
+                        `;
+                        return;
+                    }
+                    
+                    // 渲染数据
+                    data.forEach((stock, index) => {
+                        const row = document.createElement('tr');
+                        row.className = `${index % 2 === 0 ? 'table-row-even' : 'table-row-odd'} table-row-hover`;
+                        
+                        // 定义信号强度（这部分之前漏掉了）
+                        let signalClass = '';
+                        let signalText = '';
+                        const score = parseFloat(stock.尾盘强度);
+                       // ... existing code ...
+                        if (score >= 0.8) {
+                            signalClass = 'bg-gradient-to-r from-pink-600 to-red-600 text-white font-bold px-3 py-1 rounded-md transform hover:scale-105 transition-all';
+                            signalText = '强烈买入';
+                        } else if (score >= 0.6) {
+                            signalClass = 'bg-red-600 text-white font-bold px-3 py-1 rounded-md transform hover:scale-105 transition-all';
+                            signalText = '建议买入';
+                        } else if (score >= 0.4) {
+                            signalClass = 'bg-gradient-to-r from-green-500 to-teal-500 text-white font-bold px-3 py-1 rounded-md transform hover:scale-105 transition-all';
+                            signalText = '可以关注';
+                        } else {
+                            signalClass = 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-bold px-3 py-1 rounded-md transform hover:scale-105 transition-all';
+                            signalText = '暂时观望';
+                        }
+                        // ... existing code ...
+                        
+                        // 格式化所有数据
+                        const volume = (parseFloat(stock.成交量) / 10000).toFixed(2);
+                        const turnover = parseFloat(stock.换手率).toFixed(2);
+                        const volRatio = parseFloat(stock.量比).toFixed(2);
+                        const amplitude = parseFloat(stock.振幅).toFixed(2);
+                        const strength = (parseFloat(stock.尾盘强度) * 100).toFixed(1);
+                        const priceTrend = ((stock.最新价 - stock.今开) / stock.今开 * 100).toFixed(1);
+                        const volumeTrend = (parseFloat(stock.成交量趋势) || 1).toFixed(2);
+                        
+                        row.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-medium text-gray-900">${stock.名称}</div>
+                                <div class="text-sm text-gray-500">${stock.代码}</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-medium ${score >= 0.6 ? 'text-red-600' : 'text-gray-900'}">${strength}%</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${signalClass}">
+                                    ${signalText}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">${stock.最新价}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${parseFloat(stock.涨跌幅) >= 0 ? 'text-red-600' : 'text-green-600'}">
+                                ${stock.涨跌幅}%
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">${volume}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">${turnover}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">${volRatio}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">${amplitude}</td>
+                        `;
+                        
+                        tbody.appendChild(row);
+                    });
+                    
+                    const now = new Date();
+                    lastUpdateTime.textContent = `最后更新：${now.toLocaleTimeString()}`;
+                    lastUpdateTime.classList.remove('opacity-0');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    tbody.innerHTML = `
+                        <tr class="table-row-even">
+                            <td colspan="10" class="px-6 py-4 text-center">
+                                <div class="text-red-500 mb-2">获取数据失败: ${error.message}</div>
+                                <button onclick="refreshStocks()" class="text-blue-600 hover:text-blue-800 underline text-sm">
+                                    点击重试
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                })
+                .finally(() => {
+                    button.disabled = false;
+                    button.classList.remove('opacity-75');
+                    refreshText.innerHTML = `
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        获取数据
+                    `;
+                });
+        }
+    
+    // 添加自动隐藏更新时间的功能
+    let updateTimeTimer;
+    function updateLastUpdateTimeVisibility() {
+        const lastUpdateTime = document.getElementById('lastUpdateTime');
+        clearTimeout(updateTimeTimer);
+        lastUpdateTime.classList.remove('opacity-0');
+        
+        updateTimeTimer = setTimeout(() => {
+            lastUpdateTime.classList.add('opacity-0');
+        }, 5000);  // 5秒后隐藏
+    }
+    
+    // 监听页面可见性变化
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            clearTimeout(updateTimeTimer);
+        }
+    });
+    
+    // 添加输入验证函数
+    function validateInput(input, min, max) {
+        const value = parseFloat(input.value);
+        if (value < min) input.value = min;
+        if (value > max) input.value = max;
+    }
+    
+    // 为输入框添加验证
+    document.getElementById('minScore').addEventListener('change', function() {
+        validateInput(this, 0, 1);
+    });
+    
+    document.getElementById('minPrice').addEventListener('change', function() {
+        validateInput(this, 0, parseFloat(document.getElementById('maxPrice').value));
+    });
+    
+    document.getElementById('maxPrice').addEventListener('change', function() {
+        validateInput(this, parseFloat(document.getElementById('minPrice').value), 1000);
+    });
+    </script>
+</body>
+</html>
