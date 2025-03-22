@@ -20,8 +20,18 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install akshare
+        pip install pandas
+        pip install flask
+        pip install flask-cors
         
     - name: Run stock screener
       run: |
-        python src/main.py
+        mkdir -p logs
+        python src/main.py > logs/stock_screener.log 2>&1
+        
+    - name: Upload logs
+      uses: actions/upload-artifact@v2
+      with:
+        name: stock-screener-logs
+        path: logs/stock_screener.log
