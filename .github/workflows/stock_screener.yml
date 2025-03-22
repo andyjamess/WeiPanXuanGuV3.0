@@ -34,10 +34,12 @@ jobs:
         
         def calculate_strength(df):
             # 计算强度指标
-            df['量比得分'] = df['量比'].clip(0, 5)
-            df['换手率得分'] = df['换手率'].clip(0, 15) / 5
-            df['涨跌得分'] = ((df['涨跌幅'] + 10) / 20 * 2).clip(0, 2)
-            df['强度得分'] = df['量比得分'] + df['换手率得分'] + df['涨跌得分']
+            df['量比得分'] = df['量比'].apply(lambda x: min(5, x * 0.8))  # 量比得分优化
+            df['换手率得分'] = df['换手率'].apply(lambda x: min(3, x * 0.3))  # 换手率得分优化
+            df['涨跌得分'] = df['涨跌幅'].apply(lambda x: min(2, max(0, x * 0.2)))  # 涨跌得分优化
+            df['强度得分'] = (df['量比得分'] * 1.2 +  # 加权计算
+                          df['换手率得分'] * 1.1 +
+                          df['涨跌得分']).round(2)
             return df
             
         def run_screener():
@@ -46,22 +48,20 @@ jobs:
                 df = ak.stock_zh_a_spot_em()
                 
                 if df is not None:
-                    # 数据处理
                     df = calculate_strength(df)
-                    # 筛选条件
                     mask = (
-                        (df['涨跌幅'] > 2) &        # 涨幅大于2%
-                        (df['量比'] > 2) &          # 量比大于2
-                        (df['换手率'] > 3) &        # 换手率大于3%
-                        (df['最新价'] > df['今开'])  # 收盘价高于开盘价
+                        (df['涨跌幅'] > 3) &         # 提高涨幅要求
+                        (df['量比'] > 2.5) &         # 提高量比要求
+                        (df['换手率'] > 4) &         # 提高换手率要求
+                        (df['最新价'] > df['今开']) & # 收盘价高于开盘价
+                        (df['最新价'] > 5)           # 股价过滤
                     )
-                    result = df[mask].sort_values('强度得分', ascending=False).head(20)
-                    # 保存结果
+                    result = df[mask].sort_values('强度得分', ascending=False).head(15)
                     result.to_csv('stock_data.csv', index=False)
                     print(f'筛选结果: {len(result)} 只股票')
-                    print('排名前三股票:')
-                    top3 = result[['代码', '名称', '最新价', '涨跌幅', '强度得分']].head(3)
-                    print(top3.to_string())
+                    print('\\n强势股排名:')
+                    display = result[['代码', '名称', '最新价', '涨跌幅', '量比', '换手率', '强度得分']].head()
+                    print(display.to_string())
                 else:
                     print('数据获取失败')
             except Exception as e:
